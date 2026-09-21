@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ruleta Instituto Claret - Completa</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1e1e2e;
+            color: #cdd6f4;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        header { text-align: center; margin-bottom: 20px; }
+        h1 { color: #89b4fa; font-size: 30px; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px; }
+        p.subtitle { color: #a6adc8; font-size: 15px; }
+        
+        .controls {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+        }
+        select, button {
+            padding: 12px 20px;
+            font-size: 15px;
+            border-radius: 10px;
+            border: none;
+            outline: none;
+            font-weight: 600;
+        }
+        select {
+            background: #313244;
+            color: #cdd6f4;
+            border: 1px solid #45475a;
+            cursor: pointer;
+        }
+        .btn-spin {
+            background: #a6e3a1;
+            color: #11111b;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(166, 227, 161, 0.4);
+            transition: all 0.2s ease;
+        }
+        .btn-spin:hover { transform: scale(1.05); background: #94e28f; }
+        .btn-spin:active { transform: scale(0.98); }
+
+        .btn-reset {
+            background: #f38ba8;
+            color: #11111b;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-reset:hover { transform: scale(1.05); background: #e78284; }
+
+        #wheel-container {
+            position: relative;
+            width: 480px;
+            height: 480px;
+            max-width: 90vw;
+            max-height: 90vw;
+            margin-top: 10px;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+        }
+        #pointer {
+            position: absolute;
+            top: -14px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 16px solid transparent;
+            border-right: 16px solid transparent;
+            border-top: 28px solid #f38ba8;
+            z-index: 10;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .modal-card {
+            background: #313244;
+            padding: 30px 40px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 12px 35px rgba(0,0,0,0.6);
+            border: 2px solid #89b4fa;
+            max-width: 90%;
+            width: 420px;
+        }
+        .modal-card h2 { color: #fab387; margin-bottom: 10px; font-size: 22px; }
+        .modal-card p { font-size: 26px; font-weight: bold; color: #89b4fa; margin: 20px 0; }
+        
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .btn-remove {
+            background: #f38ba8;
+            color: #11111b;
+            padding: 10px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .btn-keep {
+            background: #89b4fa;
+            color: #11111b;
+            padding: 10px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .btn-remove:hover, .btn-keep:hover { transform: scale(1.05); }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>🎓 RULETA INSTITUTO CLARET</h1>
+        <p class="subtitle">Selecciona un curso y gira la ruleta</p>
+    </header>
+
+    <div class="controls">
+        <select id="course-select"></select>
+        <button class="btn-spin" id="spin-btn">¡GIRAR RULETA!</button>
+        <button class="btn-reset" id="reset-btn" title="Restaurar la lista de alumnos completa">Reiniciar Curso</button>
+    </div>
+
+    <div id="wheel-container">
+        <div id="pointer"></div>
+        <canvas id="canvas" width="600" height="600"></canvas>
+    </div>
+
+    <div class="modal" id="winner-modal">
+        <div class="modal-card">
+            <h2>🎉 ¡Estudiante Seleccionado/a! 🎉</h2>
+            <p id="winner-name">Nombre</p>
+            <div class="modal-buttons">
+                <button class="btn-remove" onclick="removeWinner()">Bloquear / Descartar</button>
+                <button class="btn-keep" onclick="closeModal()">Mantener en Ruleta</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const originalDatabase = {
+            "1° Básico A": [
+                "Emilia Aguayo", "Rafael Baeza", "Javiera Burgos", "Santiago Caamaño",
+                "Emiliano Callunao", "Trinidad Caniupan", "Isidora Ceballos", "Felipe Collinao",
+                "Briana Colmenarez", "Maite Díaz", "Isabella Estrada", "Florencia Fierro",
+                "Matteo Gajardo", "Vicente Gajardo", "Josefa Garay", "Julieta Girard",
+                "Bruno Gutiérrez", "Amira Jara", "Janice Laloi", "Franco López",
+                "Simón López", "Alma Martínez", "Benjamín Muñoz", "Santiago Pérez",
+                "Carlos Quidel", "Noah Quinchaleo", "Annette Soto", "Emilia Sotomayor",
+                "Agustina Torres", "Lautaro Torres", "Velkan Ulloa", "Elizabeth Valdés",
+                "Benjamín Villarreal", "Martina Zúñiga", "Dolly Ruiz", "Anibal García", "Mariano Goyheneche"
+            ],
+            "1° Básico B": [
+                "Abigail Aravena", "Alissa Blanco", "Sofía Campos", "Colomba Canales",
+                "Mateo Cofré", "Fernanda Contreras", "Ámbar Díaz", "Benjamín Erices",
+                "Agustín Flores", "León Flores", "Isabella Fontealba", "Mayte Gallardo",
+                "Lucas Gaminao", "Joaquín Garrido", "Joaquín González", "Sofía Herrera",
+                "Julieta Hueche", "Dairis Huechicoy", "Barbara Leal", "Sebastián Mariño",
+                "Facundo Mendoza", "Ignacia Mora", "Simon Obreque", "Agustina Olmazabal",
+                "Dante Poblete", "Gaspar Poblete", "Santiago Ramírez", "Samuel Riquelme",
+                "Valentin Rodríguez", "Javiera Rubilar", "Lucas Salinas", "Leandro Strappini",
+                "Cristóbal Valdebenito", "Silvia Valenzuela", "Benjamín Vilches", "Josefa Villa", "Simona Villarreal"
+            ],
+            "1° Básico C": [
+                "Aivan Alocilla", "Augusto Cáceres", "Josefa Casanova", "Agustina Castro",
+                "Emiliano Cifuentes", "Belén Cofré", "Joaquin Fuentes", "Alonso Fuentes",
+                "Luis Garrido", "Lia Herrera", "Matías Igor", "Leonardo Inostroza",
+                "Pedro Lagos", "Antu Llanquinao", "Agustina Lopez", "Damián Madariaga",
+                "Benjamín Marcos", "Lucas Martinez", "Aylen Mendez", "Leon Montero",
+                "Derek Mora", "Anyelina Moraga", "Manuel Muñoz", "Isidora Peña",
+                "José Pilcol", "Leon Pinilla", "Milan Roa", "Sofia Sepulveda",
+                "Samantha Silva", "Ana Skewes-Cox", "Benjamin Soto", "Mónica Soto",
+                "Felipe Troncoso", "Franco Valenzuela", "Dafne Sepúlveda", "Millaray Huaiquiñir", "Catalina Alarcón"
+            ],
+            "2° Básico A": [
+                "Alan Acosta", "Julieta Acuña", "Jhans Acuña", "Matias Alarcon",
+                "Lucas Andrade", "Julian Araneda", "Mía Araya", "Benjamín Arias",
+                "Amanda Arriagada", "Sofia Basso", "Mateo Cares", "Agustina Carrasco",
+                "Bastián Carreño", "Joaquín Carreño", "Luciana Carrillo", "Sofía Castro",
+                "Laura Ceballos", "Lucas Cerda", "Cristofer Delgado", "Sofía Ferreira",
+                "Emilia Fuentes", "Sebastián Guerra", "Isabella Henríquez", "Leftraro Higuera",
+                "Agustina Leal", "Julieta Llancanao", "Iván Maliqueo", "Ámbar Martínez",
+                "Isidora Matus", "Alonso Mena", "Agustín Obando", "Danae Parra",
+                "Sebastián Ramos", "Diana Riquelme", "Santiago Rivas", "Lucas Sáez",
+                "Trinidad Salazar", "Antonella Sandoval", "Simón Silva", "Simón Zambrano",
+                "Agustín Buholzer", "Gabriel Navarrete"
+            ],
+            "2° Básico B": [
+                "Matías Aguilera", "Antonella Barboza", "Mayte Beltrán", "Máximo Cofré",
+                "Gaspar Collinao", "Mateo Cruces", "Carlos Cuevas", "Isabella Delgado",
+                "Dante Esparza", "Florencia Espinoza", "Simón Faúndez", "Denisse Ferreira",
+                "Emily Ferreira", "Trinidad Fica", "Felipe Figueroa", "Isidora Fuentealba",
+                "Lucas Ganga", "Renata García", "Tiare Garrido", "Ignacia González",
+                "Maite González", "Joaquín Huenuqueo", "Gaspar Inostroza", "Oscar Leiva",
+                "Matilde Leviman", "Valentina Lopez", "Iván Mendoza", "Javier Navarrete",
+                "Florencia Oliva", "Eluney Olivares", "José Olivares", "Elián Padilla",
+                "Catalina Parada", "Constanza Peralta", "Emilia Pulquillanca", "Amaral Recabal",
+                "Rafael Sáez", "Emilia Simoes", "Mateo Veroiza", "Emma Vidal",
+                "Thomas Llanquinao", "Camilo Garrido"
+            ],
+            "2° Básico C": [
+                "Isaac Alarcon", "Ainhoa Antinao", "Natasha Bonilla", "Alfredo Calzada",
+                "Isabella Caneo", "Javiera Caniupal", "Amaia Cañizalez", "Abreu Cheuquemán",
+                "Lían Constanzo", "Matilde Cordini", "Isabella Cortés", "María Figueroa",
+                "José Foitzich", "Yobita Fuentes", "Angel Garrido", "Montserrat Gubernatti",
+                "Nicolás Guzmán", "Florencia Henriquez", "Maite Jara", "Dylan Jaramillo",
+                "Tchedcie Joseph", "Juliana Laborde", "Lucas Lizama", "Aynara Manríquez",
+                "Millaray Marihueque", "Josefina Montero", "Amanda Mora", "Tomás Muñoz",
+                "Luciano Nesbet", "Leonor Oketos", "Tomás Oñate", "Tomás Orellana",
+                "Maite Padilla", "Dante Quilodrán", "Josefa Sáez", "Joaquín Solís",
+                "Javier Torres", "Mia Ulloa", "Diego Valdivia", "Matilde Vejar",
+                "Fernanda Velásquez", "Gabriel Enríquez"
+            ],
+            "2° Básico D": [
+                "Celeste Agüero", "Louis Bruno", "Maite Castillo", "Simón Castro",
+                "Franco Catrio", "Gabriela Cheuquel", "Joaquin Cifuentes", "Agustín Díaz",
+                "Valentín Espinoza", "Emilia Fierro", "Augusto Garrido", "Emilia Gertner",
+                "Ignacia Gonzalez", "Alonso González", "Luciano González", "Antonio Gutiérrez",
+                "Aaron Huentequeo", "Valentina Iturra", "Benjamín Medina", "Lissette Melillán",
+                "Thiare Mendez", "Luciano Millar", "Sara Molina", "Vicente Moraga",
+                "Martina Morales", "Adeline Muñoz", "Dereck Oblitas", "Pascale Olave",
+                "Pascale Osses", "Gillian Padilla", "Amara Parada", "Maite Penrroz",
+                "Andrés Perez", "Nicolás Pérez", "Sofia Pérez", "Ema Rojo",
+                "Martina Sáez", "Agustina Santana", "Ámbar Vergara", "Isabella Vergara", "Arelis Zúñiga"
+            ],
+            "3° Básico A": [
+                "Mateo Aburto", "Fiorella Acuña", "Máximo Alcarruz", "Ian Álvarez",
+                "Ian Arriagada", "Consuelo Ávila", "Joaquín Durán", "Carlos Fica",
+                "Wisley Fleurinord", "Bastián Flores", "Denisse Gutiérrez", "Alicia Gutiérrez",
+                "Matilda Leyton", "Mateo Mariano", "Jaime Martínez", "Elsa Martínez",
+                "Maximiliano Mellado", "Isidora Molinas", "Matteo Nain", "Javiera Paillao",
+                "Julieta Pavez", "Zakiñ Penchuleo", "Alejandro Pinto", "Celeste Poblete",
+                "María Quidel", "Ema Rabert", "Violeta Rojas", "Julián Sáez",
+                "Ricardo Sáez", "Amanda Santibáñez", "Santiago Simi", "Aynara Soto",
+                "Maythe Torres", "Agustina Valenzuela", "Amparo Vallejos", "Gaspar Vera", "Germán Venegas"
+            ],
+            "3° Básico B": [
+                "Isabella Álvarez", "Paula Álvarez", "Loretta Alvarez", "Josefa Anabalón",
+                "Francisca Beltrán", "Sophia Bizama", "Dalis Calderin", "Dante Cocio",
+                "Nicolás Contreras", "Isidora Cuevas", "Agustín Ferreira", "Josefina Fuentes",
+                "Lucas Garrido", "Raphael González", "Pía Huenchulao", "Emylia Ibáñez",
+                "Eydhan Ibáñez", "Antonia Leiva", "Cristopher Marimán", "Joaquín Márquez",
+                "Julieta Martínez", "Lucía Mendoza", "Florencia Millar", "Leonardo Parra",
+                "Valentina Parra", "Alonso Sáez", "Julieta Salazar", "Lucas Salazar",
+                "Alexandra Sepúlveda", "Gouki Tereucán", "Emma Traipe", "Gaspar Ulloa",
+                "Vicente Yáñez", "Luciano Yáñez", "Gabriela Zavala", "Pascal Muñoz",
+                "Alislenn Fuentes", "Agustina Nuñez"
+            ],
+            "3° Básico C": [
+                "Daniel Aguilera", "León Agurto", "Agustín Boisier", "Isidora Brevis",
+                "Adel Cáceres", "Daniel Castillo", "Sofía Coliñanco", "Amparo Cuevas",
+                "Vicente Curiñir", "Javiera Echeverría", "Emilia Espinoza", "Maximiliano Fierro",
+                "Marcelo Flores", "Camila Fuentes", "Antonella Garay", "Javiera González",
+                "Mayte Gonzalez", "Máximo Gutiérrez", "Amanda Hernández", "Alvaro Hidalgo",
+                "Martín Huenchunao", "Mateo Jerez", "Eduardo Lastra", "Rayen Lefimil",
+                "Mailen Neira", "María Otárola", "Maria Padilla", "Matías Painén",
+                "Pascal Palta", "Antonella Puentes", "Cristóbal Quiroga", "Gustavo Rebolledo",
+                "Lucas Robles", "Sebastián Salazar", "Aylen Silva", "Emilia Valdés",
+                "Bruno Velasquez", "Hikari Vivanco", "Santiago Zapata"
+            ],
+            "3° Básico D": [
+                "Amparo Alvarado", "Catalina Aránguiz", "Helena Bahamondes", "Agustín Brito",
+                "Maite Campos", "Martina Chacón", "Emilio Cocke", "Florencia Constanzo",
+                "Miguel Contreras", "Lucas Cuevas", "Emilio Díaz", "Antonella Garcia",
+                "Melany González", "Valentina Guzman", "María Guzmán", "Samantha Hernández",
+                "Javiera Hernández", "Anaís Hernández", "Isabella Huete", "Santiago Jara",
+                "Sofía Jara", "Agustina Jarpa", "Daniel Lagos", "Trinidad Molina",
+                "Martín Muñoz", "Vicente Muñoz", "Joaquín Osses", "Emma Padilla",
+                "Javier Parra", "Aline Pfeifer", "Amara Rañiman", "Valentín Sáez",
+                "Dante Saldivar", "Guillermo Sarabia", "Emilia Sillard", "Emma Vergara",
+                "Mía Vitanza", "Gabriela Yana", "Antonella Riquelme", "Dominique Rebolledo"
+            ],
+            "3° Básico E": [
+                "Mitzi Alvarez", "Felipe Ancatén", "Trinidad Baeza", "Mathias Briceño",
+                "Anahis Calfulén", "Agustín Caniullán", "Abigail Caniuqueo", "Mailen Carilao",
+                "Simón Carrasco", "Josefa Casanova", "Pablo Castillo", "Agustìn Chaves",
+                "Josefina Contreras", "Antonella Cornejo", "Tomás Cuadra", "Germán García",
+                "Lucas González", "Donatto Henríquez", "Eileen Hernández", "Samara Huilipán",
+                "Constanza Jaramillo", "Agustín Jorquera", "Josefa Lizama", "Lyan Montoya",
+                "Elisabet Navarrete", "Vicente Ortiz", "Dante Parra", "Agustín Rapimán",
+                "Luis Saldía", "Josefa Salinas", "Emilia Soto", "Dayisa St Amour",
+                "Nicole Velasco", "Martín Venegas", "Amalia Vergara", "Ian Vilugrón",
+                "Miguel Zapata", "Alonso Carrasco"
+            ],
+            "4° Básico A": [
+                "Catalina Aillapán", "Mateo Alarcón", "Antonia Amulef", "Sofía Anriquez", "Laura Araneda", "Martina Arroyo",
+                "Consuelo Benavides", "Laura Benavides", "Isabella Bertuzzi", "Sebastián Burgos", "Fernanda Castro", "Emilia Delgado",
+                "Renata Espinoza", "Francisca Fica", "Joaquín Fuentes", "Antonia Fuentes", "Emilio González", "Renato Henríquez",
+                "Jean Iturriaga", "Elizabeth Jara", "Eduardo Kirsinger", "Jhonny Leiva", "Alonso López", "Elías Manquilef",
+                "Agustín Martínez", "Isabella Martínez", "Ignacia Martínez", "Agustín Maurer", "Lucas Mellado", "Hellen Oñate",
+                "Sebastián Pérez", "Camilo Rupaillan", "Enrique Sanhueza", "Aynara Sobarzo", "Nicolás Solís", "Kendricks Soto",
+                "Dannae Suazo", "Renato Suazo", "Isidora Valdebenito", "Benjamín Vásquez", "Rosario Vergara"
+            ],
+            "4° Básico B": [
+                "Martin Abarzua", "Emily Acosta", "Gabriel Aguilar", "Liam Alarcón", "Martin Alvear",
+                "Dylan Aravena", "Facundo Badilla", "Ian Benavides", "Samuel Benitez", "Trinidad Bravo",
+                "Mia Cabañas", "Gaspar Carrasco", "Josefa Carreño", "Martin Carreño", "Nicolas Cartes",
+                "Bastian Castro", "Ian Castro", "Renato Castro", "Emilia Coña", "Valentina Diaz",
+                "Sofia Donoso", "Mateo Escobar", "Isabel Fuentes", "Samuel Garrido", "Dylan Gaete",
+                "Emilia Gomez", "Mateo Hinostroza", "Ian Huircan", "Jose Huirimilla", "Isidora Leal",
+                "Amanda Lopez", "Trinidad Marabolí", "Agustin Meza", "Agustin Muñoz", "Montserrat Pardo",
+                "Aaron Risco", "Benjamin Riquelme", "Ian Silva", "Florencia Soto", "Gaspar Urra",
+                "Emiliano Vidal", "Santiago Zapata"
+            ],
+            "4° Básico C": [
+                "Catalina Agurto", "Ian Albornoz", "Bastián Almendra", "Renato Astudillo", "Catalina Avello",
+                "Gabriel Barrientos", "Julieta Belmar", "Agustin Castillo", "Agustina Chamorro", "Agustín Durán",
+                "Dilan Fuenzalida", "Montserrat Garcia", "Bastián Huilipang", "Agustín Lincopan", "Gaspar Mardones",
+                "Mateo Medel", "Emiliano Merino", "Tomas Molina", "Ian Morales", "Franco Morales",
+                "Emilia Moreira", "Dante Muñoz", "Mateo Muñoz", "Florencia Opazo", "Martina Ortiz",
+                "Amanda Pardo", "Maite Perez", "Mia Quintana", "Emily Reyes", "Josefa Rivas",
+                "Julieta Riquelme", "Bastián Sanhueza", "Tomás Seguel", "Mia Serey", "Florencia Soto",
+                "Samuel Tapia", "Sofia Troncoso", "Martin Urra", "Antonella Valenzuela", "Trinidad Valenzuela",
+                "Julieta Yañez"
+            ],
+            "4° Básico D": [
+                "Aneley Abello", "Facundo Acuña", "Martina Arévalo", "Abraham Becerra", "Alan Borges", "Valentina Cartes",
+                "Amanda Castro", "Patricio Cifuentes", "Amanda Elgueta", "Josefa Elgueta", "Valentina Estrada", "Cristóbal Fernández",
+                "Agustina Fica", "Luciana Fierro", "Maite Figueroa", "Agustina Gutiérrez", "Martín Jara", "Bruno Leiva",
+                "Mayte Lillo", "Javiera Maripil", "Emilia Masquiaran", "Danae Millanguir", "Mateo Montecinos", "Jorge Mora",
+                "David Mora", "Tomás Muñoz", "Cristóbal Navarrete", "Franco Navarrete", "Adam Ojeda", "Pascale Osses",
+                "Isidora Pavez", "Colomba Rios", "Bastián Salazar", "Carlos Saldía", "Antonella Valenzuela", "Agustin Velasquez",
+                "Steffano Zampeze", "Julieta Bustamante", "Montecinos Del", "Aylin Poblete", "Paz Urmeneta"
+            ],
+            "4° Básico E": [
+                "Anaiz Aguilera", "Sofia Aillal", "Maximiliano Alvial", "Benjamín Antilef", "Ámbar Campos", "Aylin Catrileo",
+                "Katherine Cofré", "Renata Espinoza", "Josefa Gallegos", "Verónica García", "Antonella Gutiérrez", "Ignacio Hermosilla",
+                "Francisco Manosalva", "Maite Márquez", "Mariano Martínez", "Ian Martinez", "Martín Monsálvez", "Josefa Mora",
+                "Agustina Neira", "Martina Ojeda", "Maria-Gracia Oñate", "Draco Parra", "Maite Peralta", "Sofía Pérez",
+                "Mariano Pizarro", "Lorenzo Ramírez", "Emilia Rivera", "Maite Riveros", "Crisbell Romero", "Agustín Rubillo",
+                "Emilia Ruiz", "Luciano Salinas", "Matías Sánchez", "Antonella Sánchez", "Tomás Sobarzo", "Sofía Soto",
+                "Mateo Ulloa", "Francisco Velásquez", "Maite Viveros", "Julio Zúñiga"
+            ],
+            "4° Básico F": [
+                "Mayaa Peralta", "Bastián Alarcón", "Sofía Aninao", "Facundo Araneda", "Elena Baez", "Franco Barrientos",
+                "Mayra Beroíza", "Cristóbal Bravo", "Benjamín Carranza", "Alexander Castellano", "Santiago Castillo", "Martina Cortez",
+                "Pascal Daza", "Florencia Díaz", "Isabella Escalona", "Yahir Ferrada", "Ezequiel Fica", "Nicolas Gonzalez",
+                "Cristóbal Huenteman", "Mateo Lizama", "Emilio Lopez", "Amanda López", "Matías Maldonado", "Anahí Millacán",
+                "Valentina Millacura", "Monserratt Moncada", "Martina Montero", "Amalia Navarrete", "Paloma Ojeda", "Cristóbal Quezada",
+                "Benjamín Quijada", "Mathias Quintero", "Emilia Riveros", "Jesús Saldivia", "Benjamin Sanhueza", "Constanza Vilches",
+                "Mateo Mancilla", "Mateo Peralta", "Tomás Leiva"
+            ],
+            "5° Básico A": [
+                "Monserrat Abarzúa", "Joaquín Arias", "Santiago Barreto", "Angelina Bascuñán", "Gonzalo Beroísa", "Julián Castillo",
+                "Lucas Castillo", "Sofía Catrileo", "Daniel Cid", "Pablo Echagüe", "José Espinoza", "Camila Fernández",
+                "Maite Garrido", "Agustín Gutierrez", "Christian Herrera", "Judith Jara", "Franchesca Jimenez", "Catalina Labrín",
+                "Julio Manquian", "Rosario Mora", "Ariela Muñoz", "Javiera Nahuelpán", "Víctor Pacheco", "Benjamin Peña",
+                "Ámbar Retamal", "Francisco Riquelme", "Martín Rojas", "Maite Rueda", "Alonso Saavedra", "Isidora Sáez",
+                "Gaspar Sáez", "Paz Salamanca", "Francisca Salinas", "Alex Sánchez", "Martín Sepúlveda", "Diana Tapia",
+                "Joseffa Torres", "David Trangolaf", "Anahis Vargas", "Víctor Velásquez", "Sebastián Vidal"
+            ],
+            "5° Básico B": [
+                "Emilia Aravena", "Pilar Barros", "Felipe Burgos", "Aylén Bustos", "Kim Calluil", "Sayen Caniguan",
+                "Alfonso Cárdenas", "Vicente Cariqueo", "Simón Caurapán", "Cristóbal Constanzo", "Rayen Contreras", "Yoyce Fernández",
+                "Isidora González", "Josefa Hernández", "Maximiliano Hidalgo", "Sofía Honores", "Joaquín Mariqueo", "Lía Meliu",
+                "Scarlett Mellado", "Max Mendez", "Rafael Montoya", "Trinidad Morales", "Kristian Muñoz", "Javiera Navarrete",
+                "Nicolás Orellana", "Joaquín Perez", "Lucas Pinchulaf", "Leonardo Pino", "Colomba Reeve", "Isidora Riffo",
+                "Pascal Riquelme", "Martina Sepúlveda", "Agustín Simi", "Millaray Toro", "Luis Ulloa", "Vicente Velásquez",
+                "Benjamín Vergara", "Amanda Vinet", "Cristóbal Yáñez", "Consuelo Venegas"
+            ],
+            "5° Básico C": [
+                "Alonso Agram", "Bastián Barrales", "Franco Castillo", "Dylan Coilla", "Javier Cruces", "Agustina Curamil",
+                "Agustín Espinoza", "Pascal Fuentealba", "Isidora Gallardo", "Aylin Gallardo", "Fernando Garrido", "Lucas González",
+                "Montsserrat Hernández", "Emma Hope", "Jhendelyn Hueche", "Sofía Huichanir", "Matias Huichulef", "Valeria Isla",
+                "Fernanda Iturra", "Matilde Jerez", "Christopher Leiva", "Agatha Martínez", "Christian Martínez", "Helmuth Montesino",
+                "Martina Muñoz", "Trinidad Muñoz", "Daniel Novoa", "Isidora Pacheco", "Florencia Pérez", "Bastian Pfeifer",
+                "Martina Quezada", "Victoria Regle", "Agustín Rickemberg", "Benjamín Rodríguez", "González San", "Santiago Soto",
+                "Sebastián Traipe", "Marco Velasco", "Maximiliano Zúñiga", "Camila Pichún", "Alonso Fuica"
+            ],
+            "5° Básico D": [
+                "Carolina Aguayo", "Ailyn Aguilera", "Joaquín Araneda", "Javier Araneda", "Jaime Barrera", "Josefa Caro",
+                "Cristóbal Cifuentes", "Joaquín Coliqueo", "Matías Contreras", "Bryan Curaqueo", "Mateo Escobar", "Mayte Fuentealba",
+                "Matías Garrido", "Alonso Gubernatti", "Matías Gutiérrez", "Isabel Hidalgo", "Alex Jiménez", "Vicente Llafquén",
+                "Polet Llanquileo", "Maximiliano Lobo", "Alejandro Mella", "Kimn Mellado", "Katherine Millar", "Gaspar Mosquera",
+                "Maximiliano Nahuelpan", "Félix Neira", "Maite Padilla", "Pascal Pardo", "Agustín Pavez", "Augusto Peñailillo",
+                "Isidora Pérez", "Gabriel Pincheira", "Luis Rios", "Anyelina Sanhueza", "Faúndez San", "Ignacio Soto",
+                "Emilio Tolg", "Amaya Valladares", "Angelo Vásquez", "Anaís Vasquez", "Máximo Zincker", "Joaquín Fontealba"
+            ],
+            "5° Básico E": [
+                "Maximo Alvarez", "Yedier Arroyo", "Rodrigo Benavides", "Florencia Bravo", "Jazmín Bustos", "Ivanna Caifil",
+                "Cristóbal Carrillo", "Alberto Castro", "Ramón Curinao", "Maximiliano Estrada", "Mariaisidora Figueroa", "Felipe Flores",
+                "Sisa Flores", "Jimena Geiser", "Antonella González", "Sofía Higueras", "Jaime Huentequeo", "Vicente Ibarra",
+                "Tomás Jara", "Felipe Lagos", "Jorge Leiva", "Paulina Levierr", "Isidora Lobos", "Jonathan Marín",
+                "Emilio Merino", "Lucas Muñoz", "Benjamin Nahuelcoy", "Maite Núñez", "Victoria Parra", "Pedro Quezada",
+                "Benjamín Rodríguez", "Nithael Rodríguez", "Facundo Rojas", "Emelyn Saldivia", "Benjamín Sepúlveda", "Gabriel Soto",
+                "Cristóbal Suazo", "Facundo Valenzuela", "Rayen Huaiquiñir"
+            ],
+            "5° Básico F": [
+                "Bastián Acuña", "Matías Almonacid", "Colombina Álvarez", "Renato Angulo", "Marcial Arriagada", "Juan Barrientos",
+                "Cristopher Carmona", "Joaquín Cea", "Álvaro Cofré", "Matías Coloma", "Patricio Escobar", "Antonia Espinoza",
+                "Asly Flores", "Javiera Fuentes", "Matías González", "Javiera Gutiérrez", "Elena Hope", "Agustín Huiliñir",
+                "Emilia Leal", "Génesis Leal", "Agustín Leyton", "Luckas Lincoqueo", "Agustín Martínez", "Franco Meza",
+                "Agatha Neira", "Isaac Opazo", "Matilde Ortiz", "Samy Padilla", "Franco Paredes", "José Parra",
+                "Vicente Penrroz", "Julieta Robles", "Trinidad Sáez", "Tomás Sanhueza", "Vicente Saravia", "Emily Spuler",
+                "Joaquin Valenzuela", "Coronado Von", "Emiliano Guzmán", "Joaquín Llanquinao"
+            ],
+            "6° Básico A": [
+                "Dania Acuña", "Nicolás Álamos", "Aaron Borges", "León Campos", "Ignacio Cárcamo", "Isabella Careau",
+                "Martín Catrifol", "Florencia Cerda", "Allison Chávez", "Bastián Cortés", "Vicente Crisóstomo", "Emilia Curilén",
+                "Benjamín Delgado", "Agustín Escobar", "Florencia Espinoza", "Rayen Fica", "Juan Franco", "Fernanda Fuentes",
+                "Annie González", "Josefa Huenchual", "Agustín Inostroza", "Renato Laurence", "Cristóbal Loncón", "Felipe Marihual",
+                "Luis Meneses", "Edenay Moreno", "Gustavo Muñoz", "Dante Muñoz", "Victoria Núñez", "Vicente Osses",
+                "Marthin Ruminot", "Diego Salinas", "Maximiliano Sepúlveda", "Mishki Suazo", "Ignacio Toro", "Emilia Triviños",
+                "Nelson Ulloa", "Josefina Reyes", "Caniullán Del", "Antonia Gormaz"
+            ],
+            "6° Básico B": [
+                "José Aguayo", "Iñigo Arbulu", "Celeste Barrales", "Florencia Beltrán", "Josefa Carimán", "Amber Catrin",
+                "Sara Cifuentes", "Damián Contreras", "Angel Curifil", "Gonzalo Díaz", "Pascal Flores", "Ignacia Garrido",
+                "Román González", "Jade Gutiérrez", "Joaquín Lara", "Mateo Lefimil", "Emily Llanquinao", "Nicolás Madariaga",
+                "Joaquín Masías", "Martina Méndez", "Joaquín Millalén", "Josefa Morales", "Sebastián Muñoz", "Alonso Pacheco",
+                "Trinidad Parra", "Josefa Peña", "Dante Pérez", "Joaquín Queupul", "Benjamín Riffo", "Rodolfo Rivas",
+                "Florencia Sánchez", "Juan Sánchez", "Martina Sobarzo", "Patricio Soto", "Maite Troncoso", "Amaru Valdebenito",
+                "Sofía Valdés", "Fernanda Vásquez", "Benjamín Zurita", "Maite Bustamante"
+            ],
+            "6° Básico C": [
+                "Camila Ancavil", "Matías Barril", "Cristóbal Bustos", "Sofía Cárdenas", "Carla Castillo", "Anaís Castro",
+                "Monserrat Contreras", "Sofía Contreras", "Josué Erices", "Maite Espinoza", "Tomás Fuentes", "Tomás Godoy",
+                "Constanza Gutiérrez", "Rodolfo Herrera", "Pedro Huencho", "Mateo Huenchunao", "Alonso Huento", "Martín Inzunza",
+                "Sofía Jara", "Cassandra Madariaga", "Alonso Manosalva", "Tomás Meza", "Isabella Mora", "Nicolás Muñoz",
+                "Valentina Nahuelcheo", "Sayeññ Painemal", "Alonso Parra", "Emilia Parra", "José Pérez", "Benjamín Pérez",
+                "Ricardo Poblete", "María Ponsot", "Diego Quintriqueo", "Itzamaray Ruminot", "Franco Salas", "Emilia Salgado",
+                "Maite Sánchez", "Lukas Sánchez", "Maximiliano Velasco", "Emily Otárola"
+            ],
+            "6° Básico D": [
+                "Pascal Alarcón", "Nicolás Andrades", "Monserrat Berger", "Catalina Cid", "Vicente Cifuentes", "Valentina Contreras",
+                "Matías Cruces", "Tomás Díaz", "Raimundo Glausser", "Noelia González", "Agustina González", "Maite Grandón",
+                "Gustavo Herrera", "Camilo Leal", "Evoletth Martínez", "Emily Melihuén", "Denisse Millacán", "Maite Millahual",
+                "Andrea Molina", "Isabella Mora", "Gabriel Navarro", "Amanda Oñate", "Matilda Oñate", "Vicente Otth",
+                "Maylen Paniagua", "Alberto Pino", "Agustín Prado", "Tomás Quidel", "Derman Ramos", "Martina Ríos",
+                "Amparo Rivera", "Yassin Sakr", "Edwards Sepúlveda", "Ignacia Silva", "Matilda Torres", "Anthonella Urbina",
+                "Sofía Valdebenito", "Guillermo Valle", "Joaquín Veroisa", "Amparo Zambrano"
+            ],
+            "6° Básico E": [
+                "Amanda Ávila", "Josefa Becerra", "Emily Benavides", "Jesus Blanco", "Sofía Cabrera", "Maximiliano Cárcamo",
+                "Isidora Constanzo", "Sofía Contreras", "Blanca Díaz", "Fernanda Esparza", "Monserrat Fabres", "Tomás Fuentealba",
+                "Ailyn Fuentes", "Darlyne González", "Yessenia Hernández", "Emilia Herrera", "Cristhián Mardones", "Alen Medina",
+                "Elisa Mellado", "Magdalena Montre", "Rodrigo Navarrete", "Maite Navarrete", "Leonor Osorio", "Isabella Paz",
+                "Matías Pereira", "Benjamín Ramos", "Gaspar Rojas", "Gastón Rojas", "Ricardo Salazar", "Francisca Soler",
+                "Xavier Teran", "Matilda Toloza", "Benjamín Troncoso", "Francisca Urrutia", "Javiera Valdés", "Santiago Valenzuela",
+                "Daniel Vargas", "Valentina Vargas", "Consuelo Venegas", "Guillermo Blanco"
+            ],
+            "6° Básico F": [
+                "Yadira Antipi", "Alonso Baeza", "Emilia Bravo", "Agustín Bravo", "Damián Brevis", "Christhoper Burgos",
+                "Cristóbal Burgos", "Victoria Cárdenas", "Alonso Carrasco", "Amanda Carrasco", "Franco Carvajal", "Matías Catrileo",
+                "Mauricio Catrileo", "Maite Cisterna", "Antonia Coronado", "Martina Curiqueo", "Alonso Escobar", "Agustín Gallegos",
+                "Martina Hernández", "Jade Leiva", "Sofía López", "Isidora Mariano", "Isamar Maripil", "Sebastián Maulén",
+                "Emilia Mellado", "Monserrat Mena", "Antonella Mieres", "Máximo Müller", "Martín Ojeda", "Sofia Quidel",
+                "Martín Regollo", "Ignacio Rojas", "Amanda Soto", "Fabian Teran", "Emilia Valdebenito", "Trinidad Valenzuela",
+                "Antonella Valle", "Sofía Zambrano", "Diego Garrido"
+            ],
+            "6° Básico G": [
+                "Antonella Alarcón", "Alonso Anzalone", "Mia Arriagada", "Gaspar Barra", "Josefa Bizama", "Florencia Cabezas",
+                "Lucas Castillo", "Catalina Castro", "Nibaldo Castro", "Agustin Chacón", "Sebastián Cumio", "Augusto Ferrada",
+                "Pascale Flández", "Cristóbal Fritz", "Santiago Fuentes", "Joaquín Garrios", "Vicente González", "Esperanza Huentequeo",
+                "Antonella Huinca", "Franco Illanes", "Benjamín Islas", "Antonella Jarpa", "Shlomit Lepín", "Amanda Márquez",
+                "Martín Mendoza", "Francisco Montenegro", "Abigail Montiel", "Yuri Padilla", "Ignacia Pilquimán", "Lucas Prieto",
+                "Antonella Retamal", "María Ruminot", "Matías Sáez", "Sofía Sandoval", "Nicolás Tapia", "Anthonella Velazquez",
+                "Catalina Vera", "Antonella Zúñiga", "Joaquín Padilla"
+            ]
+        };
+
+        let activeDatabase = JSON.parse(JSON.stringify(originalDatabase));
+
+        const colors = [
+            '#89b4fa', '#f38ba8', '#a6e3a1', '#fab387', '#cba6f7', 
+            '#74c7ec', '#f9e2af', '#b4befe', '#e5c89b', '#81c8be'
+        ];
+        
+        const courseSelect = document.getElementById('course-select');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const spinBtn = document.getElementById('spin-btn');
+        const resetBtn = document.getElementById('reset-btn');
+
+        let currentCourseKey = "";
+        let currentNames = [];
+        let currentAngle = 0;
+        let isSpinning = false;
+        let lastWinnerIndex = -1;
+
+        function initCourses() {
+            courseSelect.innerHTML = '';
+            for (let course in activeDatabase) {
+                const opt = document.createElement('option');
+                opt.value = course;
+                opt.textContent = course + ' (' + activeDatabase[course].length + ' alumnos)';
+                courseSelect.appendChild(opt);
+            }
+            loadCourse(courseSelect.value);
+        }
+
+        function updateSelectOptionLabel(courseKey) {
+            const count = activeDatabase[courseKey].length;
+            for (let option of courseSelect.options) {
+                if (option.value === courseKey) {
+                    option.textContent = courseKey + ' (' + count + ' alumnos)';
+                    break;
+                }
+            }
+        }
+
+        function loadCourse(courseName) {
+            currentCourseKey = courseName;
+            currentNames = activeDatabase[courseName] || [];
+            currentAngle = 0;
+            drawWheel();
+        }
+
+        function drawWheel() {
+            const numSlices = currentNames.length;
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = centerX - 12;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (numSlices === 0) {
+                ctx.fillStyle = "#a6adc8";
+                ctx.font = "bold 20px sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("¡No quedan alumnos activos!", centerX, centerY);
+                return;
+            }
+
+            const sliceAngle = (2 * Math.PI) / numSlices;
+
+            for (let i = 0; i < numSlices; i++) {
+                const startAngle = currentAngle + i * sliceAngle;
+                const endAngle = startAngle + sliceAngle;
+
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+                ctx.fillStyle = colors[i % colors.length];
+                ctx.fill();
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = '#1e1e2e';
+                ctx.stroke();
+
+                ctx.save();
+                ctx.translate(centerX, centerY);
+                ctx.rotate(startAngle + sliceAngle / 2);
+                ctx.textAlign = "right";
+                ctx.fillStyle = "#11111b";
+                
+                let fontSize = 13;
+                if (numSlices > 35) {
+                    fontSize = 9;
+                } else if (numSlices > 25) {
+                    fontSize = 11;
+                }
+                ctx.font = "bold " + fontSize + "px sans-serif";
+                
+                ctx.fillText(currentNames[i], radius - 15, 4);
+                ctx.restore();
+            }
+
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 35, 0, 2 * Math.PI);
+            ctx.fillStyle = '#181825';
+            ctx.fill();
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#89b4fa';
+            ctx.stroke();
+        }
+
+        function spin() {
+            if (isSpinning || currentNames.length === 0) return;
+            isSpinning = true;
+
+            const spinRotations = 6 + Math.random() * 4;
+            const randomOffset = Math.random() * 2 * Math.PI;
+            const totalRotation = spinRotations * 2 * Math.PI + randomOffset;
+            
+            let start = null;
+            const duration = 4000;
+
+            function animate(timestamp) {
+                if (!start) start = timestamp;
+                const progress = (timestamp - start) / duration;
+
+                if (progress < 1) {
+                    const easeOut = 1 - Math.pow(1 - progress, 4);
+                    currentAngle = easeOut * totalRotation;
+                    drawWheel();
+                    requestAnimationFrame(animate);
+                } else {
+                    currentAngle = totalRotation % (2 * Math.PI);
+                    drawWheel();
+                    isSpinning = false;
+                    showWinner();
+                }
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        function showWinner() {
+            const numSlices = currentNames.length;
+            const sliceAngle = (2 * Math.PI) / numSlices;
+            const normalizedAngle = (2 * Math.PI - (currentAngle % (2 * Math.PI)) - Math.PI / 2) % (2 * Math.PI);
+            let positiveAngle = normalizedAngle < 0 ? normalizedAngle + 2 * Math.PI : normalizedAngle;
+            
+            lastWinnerIndex = Math.floor(positiveAngle / sliceAngle);
+            document.getElementById('winner-name').innerText = currentNames[lastWinnerIndex];
+            document.getElementById('winner-modal').style.display = 'flex';
+        }
+
+        function removeWinner() {
+            if (lastWinnerIndex >= 0 && lastWinnerIndex < currentNames.length) {
+                currentNames.splice(lastWinnerIndex, 1);
+                updateSelectOptionLabel(currentCourseKey);
+                currentAngle = 0;
+                drawWheel();
+            }
+            closeModal();
+        }
+
+        function closeModal() {
+            document.getElementById('winner-modal').style.display = 'none';
+        }
+
+        function resetCurrentCourse() {
+            if (confirm("¿Deseas restaurar todos los estudiantes para " + currentCourseKey + "?")) {
+                activeDatabase[currentCourseKey] = [...originalDatabase[currentCourseKey]];
+                updateSelectOptionLabel(currentCourseKey);
+                loadCourse(currentCourseKey);
+            }
+        }
+
+        courseSelect.addEventListener('change', (e) => loadCourse(e.target.value));
+        spinBtn.addEventListener('click', spin);
+        resetBtn.addEventListener('click', resetCurrentCourse);
+
+        initCourses();
+    </script>
+</body>
+</html>
